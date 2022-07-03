@@ -573,11 +573,6 @@
     init: function(o) {
       var self = this;
 
-      // If we don't have an AudioContext created yet, run the setup.
-      if (!Howler.ctx) {
-        setupAudioContext();
-      }
-
       // Setup user-defined default properties.
       self._autoplay = o.autoplay || false;
       self._format = (typeof o.format !== 'string') ? o.format : [o.format];
@@ -595,6 +590,17 @@
         headers: o.xhr && o.xhr.headers ? o.xhr.headers : null,
         withCredentials: o.xhr && o.xhr.withCredentials ? o.xhr.withCredentials : false,
       };
+
+      if (!self._html5) {
+        // If we're not forcing HTML5 and we don't have an AudioContext created yet, run the setup.
+        if (!Howler.ctx) {
+          // sets Howler.usingWebAudio
+          setupAudioContext();
+        }
+      } else {
+        Howler.usingWebAudio = false;
+      }
+      self._webAudio = Howler.usingWebAudio;
 
       // Setup all other default properties.
       self._duration = 0;
@@ -619,9 +625,6 @@
       self._onseek = o.onseek ? [{fn: o.onseek}] : [];
       self._onunlock = o.onunlock ? [{fn: o.onunlock}] : [];
       self._onresume = [];
-
-      // Web Audio or HTML5 Audio?
-      self._webAudio = Howler.usingWebAudio && !self._html5;
 
       // Automatically try to enable audio.
       if (typeof Howler.ctx !== 'undefined' && Howler.ctx && Howler.autoUnlock) {
@@ -2167,6 +2170,10 @@
       var self = this;
       var isIOS = Howler._navigator && Howler._navigator.vendor.indexOf('Apple') >= 0;
 
+      if (!node.bufferSource) {
+        return self;
+      }
+
       if (Howler._scratchBuffer && node.bufferSource) {
         node.bufferSource.onended = null;
         node.bufferSource.disconnect(0);
@@ -2543,6 +2550,7 @@
 
     // Create and expose the master GainNode when using Web Audio (useful for plugins or advanced usage).
     if (Howler.usingWebAudio) {
+      // note: this part breaks iOS 13.3+ ControlCenter notification
       Howler.masterGain = (typeof Howler.ctx.createGain === 'undefined') ? Howler.ctx.createGainNode() : Howler.ctx.createGain();
       Howler.masterGain.gain.setValueAtTime(Howler._muted ? 0 : Howler._volume, Howler.ctx.currentTime);
       Howler.masterGain.connect(Howler.ctx.destination);
@@ -3099,18 +3107,9 @@
           panningModel: typeof o.panningModel !== 'undefined' ? o.panningModel : pa.panningModel
         };
 
-        // Update the panner values or create a new panner if none exists.
+        // Create a new panner node if one doesn't already exist.
         var panner = sound._panner;
-        if (panner) {
-          panner.coneInnerAngle = pa.coneInnerAngle;
-          panner.coneOuterAngle = pa.coneOuterAngle;
-          panner.coneOuterGain = pa.coneOuterGain;
-          panner.distanceModel = pa.distanceModel;
-          panner.maxDistance = pa.maxDistance;
-          panner.refDistance = pa.refDistance;
-          panner.rolloffFactor = pa.rolloffFactor;
-          panner.panningModel = pa.panningModel;
-        } else {
+        if (!panner) {
           // Make sure we have a position to setup the node with.
           if (!sound._pos) {
             sound._pos = self._pos || [0, 0, -0.5];
@@ -3118,7 +3117,18 @@
 
           // Create a new panner node.
           setupPanner(sound, 'spatial');
+          panner = sound._panner
         }
+
+        // Update the panner values or create a new panner if none exists.
+        panner.coneInnerAngle = pa.coneInnerAngle;
+        panner.coneOuterAngle = pa.coneOuterAngle;
+        panner.coneOuterGain = pa.coneOuterGain;
+        panner.distanceModel = pa.distanceModel;
+        panner.maxDistance = pa.maxDistance;
+        panner.refDistance = pa.refDistance;
+        panner.rolloffFactor = pa.rolloffFactor;
+        panner.panningModel = pa.panningModel;
       }
     }
 

@@ -2272,6 +2272,14 @@
         self._endFn = self._endListener.bind(self);
         self._node.addEventListener('ended', self._endFn, false);
 
+        // Listen for 'pause' event on a sound when paused externally (e.g. via MediaSession API)
+        self._endFn = self._pauseListener.bind(self);
+        self._node.addEventListener('pause', self._endFn, false);
+
+        // Listen for 'play' event on a sound when played externally (e.g. via MediaSession API)
+        self._endFn = self._playListener.bind(self);
+        self._node.addEventListener('play', self._endFn, false);
+
         // Setup the new audio node.
         self._node.src = parent._src;
         self._node.preload = parent._preload === true ? 'auto' : parent._preload;
@@ -2371,7 +2379,37 @@
 
       // Clear the event listener since the duration is now correct.
       self._node.removeEventListener('ended', self._endFn, false);
-    }
+    },
+
+    /**
+     * HTML5 Audio pause listener callback
+     */
+     _pauseListener: function() {
+      var sound = this;
+      var howl = sound._parent;
+
+      // Ensure _paused flag is set to true (necessary when pause was triggered externally)
+      if (!sound._paused) {
+        sound._paused = true;
+        howl._emit('pause', sound._id);
+        console.log('pause called & _paused=true set', sound._seek, sound)
+      }
+    },
+
+    /**
+     * HTML5 Audio play listener callback
+     */
+     _playListener: function() {
+      var sound = this;
+      var howl = sound._parent;
+
+      // Ensure _paused flag is set to false (necessary when play was triggered externally)
+      if (sound._paused) {
+        sound._paused = false;
+        howl._emit('play', sound._id);
+        console.log('play called & _paused=false set', sound._seek, sound)
+      }
+    },
   };
 
   /** Helper Methods **/
